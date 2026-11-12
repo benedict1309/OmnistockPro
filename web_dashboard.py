@@ -838,6 +838,11 @@ def get_dashboard_payload(period="toan_ky", ma_kho=1, order_id=None):
           AND {non_flash_order_cond} {period_filter}
         GROUP BY d.kenh_ban
         ORDER BY doanh_thu_thuan DESC
+    ),
+    warehouses AS (
+        SELECT ma_kho, ten_kho, tinh_tp
+        FROM kho
+        ORDER BY ma_kho
     )
     SELECT
         (SELECT row_to_json(kpi) FROM kpi) AS summary,
@@ -846,7 +851,8 @@ def get_dashboard_payload(period="toan_ky", ma_kho=1, order_id=None):
         COALESCE((SELECT json_agg(inv) FROM inv), '[]'::json) AS inventory,
         COALESCE((SELECT json_agg(bdk_top ORDER BY seq_id DESC) FROM bdk_top), '[]'::json) AS logs,
         COALESCE((SELECT json_agg(bdk_order ORDER BY seq_id DESC) FROM bdk_order), '[]'::json) AS order_logs,
-        COALESCE((SELECT json_agg(channels) FROM channels), '[]'::json) AS channels
+        COALESCE((SELECT json_agg(channels) FROM channels), '[]'::json) AS channels,
+        COALESCE((SELECT json_agg(warehouses ORDER BY ma_kho) FROM warehouses), '[]'::json) AS warehouses
     """
     rows = run_psql_json(sql)
     payload = rows[0] if rows else {}
@@ -3131,6 +3137,30 @@ HTML_CONTENT = """<!DOCTYPE html>
             loadDashboard(val);
         }
 
+        function renderWarehouseSelects(warehouses) {
+            if (!Array.isArray(warehouses) || warehouses.length === 0) return;
+
+            const ordSel = document.getElementById('select-kho-xuat');
+            if (ordSel) {
+                const prev = String(ordSel.value || '1');
+                const validValues = new Set(warehouses.map(w => String(w.ma_kho)));
+                ordSel.innerHTML = warehouses.map(w =>
+                    `<option value="${w.ma_kho}">${w.ten_kho}</option>`
+                ).join('');
+                ordSel.value = validValues.has(prev) ? prev : String(warehouses[0].ma_kho);
+            }
+
+            const invSel = document.getElementById('select-inv-kho');
+            if (invSel) {
+                const prevInv = String(invSel.value || '1');
+                const validInv = new Set(['all', ...warehouses.map(w => String(w.ma_kho))]);
+                invSel.innerHTML = warehouses.map(w =>
+                    `<option value="${w.ma_kho}">${w.ten_kho}</option>`
+                ).join('') + '<option value="all">Tất cả kho</option>';
+                invSel.value = validInv.has(prevInv) ? prevInv : String(warehouses[0].ma_kho);
+            }
+        }
+
         async function loadDashboard(explicitOrderId = null) {
             const btnRefresh = document.getElementById('btn-refresh');
             btnRefresh.disabled = true;
@@ -3160,6 +3190,7 @@ HTML_CONTENT = """<!DOCTYPE html>
                 hideAlert();
                 lastLogs = data.logs || [];
                 lastOrderLogs = data.order_logs || [];
+                renderWarehouseSelects(data.warehouses);
                 renderSummary(data.summary, data.reconcile);
                 renderOrderPanel(data.current_order, data.recent_orders);
                 renderInventoryTable(data.inventory);
