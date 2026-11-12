@@ -1,0 +1,203 @@
+// ERD: San TMDT Da kenh & Kho Thong minh (PostgreSQL). Sinh tu schema that.
+// Dan vao https://dbdiagram.io/d de xem so do.
+
+Table danh_muc {
+  ma_danh_muc int [pk, increment, note: 'Khóa chính']
+  ten_danh_muc varchar(100) [not null, note: 'Tên danh mục']
+  ma_danh_muc_cha int [note: 'Danh mục cha; NULL nếu là cấp 1']
+  indexes {
+    (ma_danh_muc_cha, ten_danh_muc) [unique]
+  }
+  Note: 'Danh mục sản phẩm phân cấp nhiều tầng (tự tham chiếu qua ma_danh_muc_cha; NULL = danh mục cấp 1).'
+}
+
+Table nha_cung_cap {
+  ma_ncc int [pk, increment, note: 'Khóa chính']
+  ten_ncc varchar(150) [not null, unique, note: 'Tên nhà cung cấp (duy nhất)']
+  dien_thoai varchar(20) [note: 'Số điện thoại liên hệ']
+  dia_chi varchar(255) [note: 'Địa chỉ']
+  Note: 'Nhà cung cấp hàng hóa (nguồn nhập), khác với gian hàng là bên bán trên sàn.'
+}
+
+Table gian_hang {
+  ma_gian_hang int [pk, increment, note: 'Khóa chính']
+  ten_gian_hang varchar(150) [not null, unique, note: 'Tên gian hàng (duy nhất)']
+  email varchar(150) [not null, unique, note: 'Email liên hệ (duy nhất)']
+  ngay_tham_gia date [not null, default: `CURRENT_DATE`, note: 'Ngày gian hàng tham gia sàn']
+  Note: 'Gian hàng (Seller) bán sản phẩm trên sàn.'
+}
+
+Table san_pham {
+  ma_san_pham int [pk, increment, note: 'Khóa chính']
+  ma_gian_hang int [not null, note: 'Gian hàng bán sản phẩm']
+  ma_danh_muc int [not null, note: 'Danh mục của sản phẩm']
+  ma_ncc int [not null, note: 'Nhà cung cấp của sản phẩm']
+  ten_san_pham varchar(200) [not null, note: 'Tên sản phẩm']
+  mo_ta text [note: 'Mô tả']
+  ngay_tao timestamp [not null, default: `now()`, note: 'Thời điểm tạo']
+  Note: 'Sản phẩm (mô tả chung); giá và tồn kho nằm ở biến thể.'
+}
+
+Table bien_the {
+  ma_bien_the int [pk, increment, note: 'Khóa chính']
+  ma_san_pham int [not null, note: 'Sản phẩm mà biến thể thuộc về']
+  sku varchar(50) [not null, unique, note: 'Mã SKU, duy nhất toàn hệ thống']
+  mau_sac varchar(50) [note: 'Màu sắc']
+  kich_co varchar(30) [note: 'Kích cỡ / dung lượng']
+  gia_nhap numeric(14,0) [not null, note: 'Giá nhập (VNĐ)']
+  gia_ban numeric(14,0) [not null, note: 'Giá bán hiện hành (VNĐ), luôn lớn hơn giá nhập']
+  indexes {
+    (ma_san_pham, mau_sac, kich_co) [unique]
+  }
+  Note: 'Biến thể sản phẩm (SKU): màu sắc, kích cỡ, giá nhập, giá bán.'
+}
+
+Table kho {
+  ma_kho int [pk, increment, note: 'Khóa chính']
+  ten_kho varchar(100) [not null, unique, note: 'Tên kho (duy nhất)']
+  tinh_tp varchar(100) [not null, note: 'Tỉnh/thành phố của kho']
+  dia_chi varchar(255) [note: 'Địa chỉ kho']
+  Note: 'Kho hàng vật lý.'
+}
+
+Table ton_kho {
+  ma_kho int [not null, note: 'Kho (thành phần khóa chính)']
+  ma_bien_the int [not null, note: 'Biến thể (thành phần khóa chính)']
+  so_luong_vat_ly int [not null, default: 0, note: 'Số lượng thực tế đang có trong kho (on_hand)']
+  so_luong_giu int [not null, default: 0, note: 'Số lượng đã giữ cho đơn đã xác nhận nhưng chưa xuất (reserved)']
+  indexes {
+    (ma_kho, ma_bien_the) [pk]
+  }
+  Note: 'Tồn kho hiện tại của từng biến thể tại từng kho: tồn vật lý và số đang giữ cho đơn.'
+}
+
+Table bien_dong_kho {
+  ma_bien_dong bigint [pk, increment, note: 'Khóa chính']
+  ma_kho int [not null, note: 'Kho phát sinh biến động']
+  ma_bien_the int [not null, note: 'Biến thể bị biến động']
+  loai varchar(12) [not null, note: 'NHAP, GIU, NHA_GIU, XUAT, HOAN hoặc DIEU_CHINH']
+  delta_vat_ly int [not null, default: 0, note: 'Thay đổi của tồn vật lý (âm là giảm)']
+  delta_giu int [not null, default: 0, note: 'Thay đổi của số đang giữ (âm là giảm)']
+  ma_don_hang int [note: 'Đơn gây ra biến động; NULL với nhập kho và điều chỉnh']
+  ly_do varchar(200) [note: 'Ghi chú lý do']
+  thoi_diem timestamp [not null, default: `now()`, note: 'Thời điểm ghi sổ']
+  Note: 'Sổ cái biến động kho, chỉ thêm, không sửa/xóa; mỗi lần nhập, giữ, xuất, hoàn đều có dòng.'
+}
+
+Table khach_hang {
+  ma_khach_hang int [pk, increment, note: 'Khóa chính']
+  ho_ten varchar(100) [not null, note: 'Họ tên']
+  email varchar(150) [not null, unique, note: 'Email (duy nhất)']
+  dien_thoai varchar(20) [note: 'Số điện thoại']
+  dia_chi varchar(255) [note: 'Địa chỉ giao hàng mặc định']
+  ngay_dang_ky date [not null, default: `CURRENT_DATE`, note: 'Ngày đăng ký tài khoản']
+  Note: 'Khách hàng mua hàng.'
+}
+
+Table voucher {
+  ma_voucher int [pk, increment, note: 'Khóa chính']
+  ma_code varchar(30) [not null, unique, note: 'Mã nhập khi áp dụng (duy nhất)']
+  ma_gian_hang int [note: 'Gian hàng áp dụng; NULL là voucher của sàn']
+  phan_tram_giam int [not null, note: 'Phần trăm giảm, từ 1 đến 100']
+  gia_tri_toi_thieu numeric(14,0) [not null, default: 0, note: 'Giá trị đơn tối thiểu để áp dụng (VNĐ)']
+  giam_toi_da numeric(14,0) [note: 'Mức giảm tối đa (VNĐ); NULL là không giới hạn']
+  ngay_bat_dau date [not null, note: 'Ngày bắt đầu hiệu lực']
+  ngay_het_han date [not null, note: 'Ngày hết hạn']
+  Note: 'Mã giảm giá theo phần trăm, của sàn hoặc của một gian hàng.'
+}
+
+Table don_hang {
+  ma_don_hang int [pk, increment, note: 'Khóa chính']
+  ma_khach_hang int [not null, note: 'Khách đặt đơn']
+  ma_gian_hang int [not null, note: 'Gian hàng nhận đơn']
+  ma_kho_xuat int [not null, note: 'Kho xuất hàng']
+  ma_voucher int [note: 'Voucher áp dụng; NULL nếu không dùng']
+  nguoi_nhan varchar(100) [not null, note: 'Người nhận (snapshot tại lúc đặt)']
+  dien_thoai_nhan varchar(20) [not null, note: 'SĐT người nhận (snapshot)']
+  dia_chi_giao varchar(255) [not null, note: 'Địa chỉ giao (snapshot)']
+  kenh_ban varchar(10) [not null, default: 'Web', note: 'Kênh bán: Web, CuaHang hoặc DoiTac']
+  idempotency_key varchar(64) [note: 'Khóa chống tạo trùng đơn khi client gửi lại yêu cầu']
+  ngay_dat timestamp [not null, default: `now()`, note: 'Thời điểm đặt (cũng là ngày sử dụng voucher)']
+  trang_thai varchar(20) [not null, default: 'ChoXacNhan', note: 'ChoXacNhan, DaXacNhan, DangGiao, DaGiao hoặc DaHuy']
+  tong_tien_hang numeric(14,0) [not null, note: 'Tổng tiền hàng trước giảm (snapshot, VNĐ)']
+  tien_giam numeric(14,0) [not null, default: 0, note: 'Số tiền được giảm nhờ voucher (snapshot, VNĐ)']
+  phi_van_chuyen numeric(14,0) [not null, default: 0, note: 'Phí vận chuyển (VNĐ)']
+  indexes {
+    (ma_khach_hang, idempotency_key) [unique]
+  }
+  Note: 'Đơn hàng: mỗi đơn thuộc đúng một gian hàng, xuất từ một kho; lưu snapshot nhận hàng và số tiền.'
+}
+
+Table chi_tiet_don_hang {
+  ma_don_hang int [not null, note: 'Đơn hàng (thành phần khóa chính)']
+  ma_bien_the int [not null, note: 'Biến thể (thành phần khóa chính)']
+  so_luong int [not null, note: 'Số lượng đặt, lớn hơn 0']
+  don_gia numeric(14,0) [not null, note: 'Giá bán tại thời điểm đặt (snapshot, VNĐ)']
+  indexes {
+    (ma_don_hang, ma_bien_the) [pk]
+  }
+  Note: 'Dòng hàng của đơn (đơn hàng - biến thể), lưu giá bán tại thời điểm đặt.'
+}
+
+Table lich_su_trang_thai {
+  ma_lich_su bigint [pk, increment, note: 'Khóa chính']
+  ma_don_hang int [not null, note: 'Đơn hàng']
+  trang_thai_cu varchar(20) [note: 'Trạng thái trước (NULL nếu mới tạo)']
+  trang_thai_moi varchar(20) [not null, note: 'Trạng thái sau']
+  thoi_diem timestamp [not null, default: `now()`, note: 'Thời điểm chuyển']
+  Note: 'Nhật ký chuyển trạng thái của đơn hàng (ghi tự động bằng trigger).'
+}
+
+Table thanh_toan {
+  ma_thanh_toan int [pk, increment, note: 'Khóa chính']
+  ma_don_hang int [not null, note: 'Đơn hàng được thanh toán']
+  phuong_thuc varchar(20) [not null, note: 'COD, ChuyenKhoan, TheTinDung hoặc ViDienTu']
+  so_tien numeric(14,0) [not null, note: 'Số tiền giao dịch (VNĐ)']
+  trang_thai varchar(20) [not null, default: 'ChoThanhToan', note: 'ChoThanhToan, ThanhCong, ThatBai hoặc HoanTien']
+  thoi_diem timestamp [not null, default: `now()`, note: 'Thời điểm giao dịch']
+  Note: 'Giao dịch thanh toán của đơn; một đơn có thể có nhiều giao dịch.'
+}
+
+Table van_chuyen {
+  ma_van_chuyen int [pk, increment, note: 'Khóa chính']
+  ma_don_hang int [not null, unique, note: 'Đơn hàng (duy nhất: 1 đơn tối đa 1 vận đơn)']
+  don_vi_vc varchar(50) [not null, note: 'Đơn vị vận chuyển']
+  ma_van_don varchar(50) [unique, note: 'Mã vận đơn (duy nhất)']
+  ngay_giao_du_kien date [note: 'Ngày giao dự kiến']
+  ngay_giao_thuc_te date [note: 'Ngày giao thực tế']
+  Note: 'Thông tin vận chuyển của đơn (tối đa một bản ghi cho mỗi đơn).'
+}
+
+Table danh_gia {
+  ma_danh_gia int [pk, increment, note: 'Khóa chính']
+  ma_don_hang int [not null, note: 'Đơn hàng được đánh giá']
+  ma_bien_the int [not null, note: 'Biến thể được đánh giá (cùng ma_don_hang tạo khóa ngoại tới dòng đơn)']
+  so_sao int [not null, note: 'Điểm từ 1 đến 5']
+  noi_dung text [note: 'Nội dung nhận xét']
+  ngay_danh_gia timestamp [not null, default: `now()`, note: 'Thời điểm đánh giá']
+  indexes {
+    (ma_don_hang, ma_bien_the) [unique]
+  }
+  Note: 'Đánh giá của khách cho một dòng hàng trong đơn đã giao.'
+}
+
+Ref: bien_dong_kho.(ma_kho, ma_bien_the) > ton_kho.(ma_kho, ma_bien_the)
+Ref: bien_dong_kho.ma_don_hang > don_hang.ma_don_hang
+Ref: bien_the.ma_san_pham > san_pham.ma_san_pham [delete: cascade]
+Ref: chi_tiet_don_hang.ma_bien_the > bien_the.ma_bien_the
+Ref: chi_tiet_don_hang.ma_don_hang > don_hang.ma_don_hang [delete: cascade]
+Ref: danh_gia.(ma_don_hang, ma_bien_the) - chi_tiet_don_hang.(ma_don_hang, ma_bien_the)
+Ref: danh_muc.ma_danh_muc_cha > danh_muc.ma_danh_muc [delete: restrict]
+Ref: don_hang.ma_gian_hang > gian_hang.ma_gian_hang
+Ref: don_hang.ma_khach_hang > khach_hang.ma_khach_hang
+Ref: don_hang.ma_kho_xuat > kho.ma_kho
+Ref: don_hang.ma_voucher > voucher.ma_voucher
+Ref: lich_su_trang_thai.ma_don_hang > don_hang.ma_don_hang [delete: cascade]
+Ref: san_pham.ma_danh_muc > danh_muc.ma_danh_muc
+Ref: san_pham.ma_gian_hang > gian_hang.ma_gian_hang
+Ref: san_pham.ma_ncc > nha_cung_cap.ma_ncc
+Ref: thanh_toan.ma_don_hang > don_hang.ma_don_hang [delete: cascade]
+Ref: ton_kho.ma_bien_the > bien_the.ma_bien_the
+Ref: ton_kho.ma_kho > kho.ma_kho
+Ref: van_chuyen.ma_don_hang - don_hang.ma_don_hang [delete: cascade]
+Ref: voucher.ma_gian_hang > gian_hang.ma_gian_hang

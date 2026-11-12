@@ -1,0 +1,4 @@
+﻿__pycache__/
+*.pyc
+.env
+ket_qua_*.txt
