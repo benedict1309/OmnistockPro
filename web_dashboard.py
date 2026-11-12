@@ -2282,11 +2282,11 @@ HTML_CONTENT = """<!DOCTYPE html>
                         </select>
                         <label for="select-bt">Sản phẩm:</label>
                         <select id="select-bt" class="select-input" onchange="onProductSelectChange()">
-                            <option value="1">AX1-DEN-128 · Aurora X1 (Đen, 128GB) — 8.900.000đ</option>
-                            <option value="2">AX1-TRG-128 · Aurora X1 (Trắng, 128GB) — 8.900.000đ</option>
-                            <option value="3">AX1-DEN-256 · Aurora X1 (Đen, 256GB) — 10.500.000đ</option>
-                            <option value="4">AX1P-XAM-256 · Aurora X1 Pro (Xám, 256GB) — 24.900.000đ</option>
-                            <option value="5">AX1P-XAM-512 · Aurora X1 Pro (Xám, 512GB) — 29.900.000đ</option>
+                            <option value="1">AX1-DEN-128 · Aurora X1 (Đen, 128GB) — 8.900.000 VNĐ</option>
+                            <option value="2">AX1-TRG-128 · Aurora X1 (Trắng, 128GB) — 8.900.000 VNĐ</option>
+                            <option value="3">AX1-DEN-256 · Aurora X1 (Đen, 256GB) — 10.500.000 VNĐ</option>
+                            <option value="4">AX1P-XAM-256 · Aurora X1 Pro (Xám, 256GB) — 24.900.000 VNĐ</option>
+                            <option value="5">AX1P-XAM-512 · Aurora X1 Pro (Xám, 512GB) — 29.900.000 VNĐ</option>
                         </select>
                         <label for="input-sl">Số lượng:</label>
                         <input id="input-sl" class="qty-input" type="number" min="1" max="5000" value="1">
@@ -2588,6 +2588,7 @@ HTML_CONTENT = """<!DOCTYPE html>
         let lastRaceData = null;
         let raceDetailOpen = false;
         let techMode = false;
+        let lastWarehouses = [];
         let summaryDrawerOpen = false;
         let nextCreateIdemKey = 'ui-create-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
 
@@ -2733,18 +2734,27 @@ HTML_CONTENT = """<!DOCTYPE html>
             btn.textContent = summaryDrawerOpen ? 'Ẩn chi tiết đối soát & SQL' : 'Chi tiết đối soát & SQL';
         }
 
+        function formatWarehouseOptionLabel(maKho, tenKho) {
+            return techMode ? `#${maKho} ${tenKho}` : tenKho;
+        }
+
         function updateStaticConfigLabels() {
-            const khoSel = document.getElementById('select-kho-xuat');
-            const invKhoSel = document.getElementById('select-inv-kho');
-            if (khoSel && khoSel.options.length >= 2) {
-                khoSel.options[0].textContent = techMode ? '#1 — Kho Thủ Đức' : 'Kho Thủ Đức';
-                khoSel.options[1].textContent = techMode ? '#2 — Kho Hà Nội' : 'Kho Hà Nội';
+            if (Array.isArray(lastWarehouses) && lastWarehouses.length > 0) {
+                renderWarehouseSelects(lastWarehouses);
+                return;
             }
-            if (invKhoSel && invKhoSel.options.length >= 3) {
-                invKhoSel.options[0].textContent = techMode ? '#1 — Kho Thủ Đức' : 'Kho Thủ Đức';
-                invKhoSel.options[1].textContent = techMode ? '#2 — Kho Hà Nội' : 'Kho Hà Nội';
-                invKhoSel.options[2].textContent = 'Tất cả kho';
-            }
+            ['select-kho-xuat', 'select-inv-kho'].forEach(selId => {
+                const sel = document.getElementById(selId);
+                if (!sel) return;
+                Array.from(sel.options).forEach(opt => {
+                    if (opt.value === 'all') {
+                        opt.textContent = 'Tất cả kho';
+                        return;
+                    }
+                    const baseName = opt.textContent.replace(/^#\\d+(?:\\s*—)?\\s+/, '');
+                    opt.textContent = formatWarehouseOptionLabel(opt.value, baseName);
+                });
+            });
         }
 
         function restoreButtonLabels() {
@@ -3139,13 +3149,14 @@ HTML_CONTENT = """<!DOCTYPE html>
 
         function renderWarehouseSelects(warehouses) {
             if (!Array.isArray(warehouses) || warehouses.length === 0) return;
+            lastWarehouses = warehouses;
 
             const ordSel = document.getElementById('select-kho-xuat');
             if (ordSel) {
                 const prev = String(ordSel.value || '1');
                 const validValues = new Set(warehouses.map(w => String(w.ma_kho)));
                 ordSel.innerHTML = warehouses.map(w =>
-                    `<option value="${w.ma_kho}">${w.ten_kho}</option>`
+                    `<option value="${w.ma_kho}">${formatWarehouseOptionLabel(w.ma_kho, w.ten_kho)}</option>`
                 ).join('');
                 ordSel.value = validValues.has(prev) ? prev : String(warehouses[0].ma_kho);
             }
@@ -3155,7 +3166,7 @@ HTML_CONTENT = """<!DOCTYPE html>
                 const prevInv = String(invSel.value || '1');
                 const validInv = new Set(['all', ...warehouses.map(w => String(w.ma_kho))]);
                 invSel.innerHTML = warehouses.map(w =>
-                    `<option value="${w.ma_kho}">${w.ten_kho}</option>`
+                    `<option value="${w.ma_kho}">${formatWarehouseOptionLabel(w.ma_kho, w.ten_kho)}</option>`
                 ).join('') + '<option value="all">Tất cả kho</option>';
                 invSel.value = validInv.has(prevInv) ? prevInv : String(warehouses[0].ma_kho);
             }
